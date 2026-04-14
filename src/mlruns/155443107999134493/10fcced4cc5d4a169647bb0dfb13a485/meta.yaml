@@ -1,0 +1,14 @@
+artifact_uri: file:C:/Users/M Abdullah Ali/Documents/Learning Material/MlOps/ML_ops_CICD_ML_flow_Pipeline/src/mlruns/155443107999134493/10fcced4cc5d4a169647bb0dfb13a485/artifacts
+end_time: 1776162531300
+entry_point_name: ''
+experiment_id: '155443107999134493'
+lifecycle_stage: active
+run_id: 10fcced4cc5d4a169647bb0dfb13a485
+run_name: Logistic_C_1
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1776162527244
+status: 3
+tags: []
+user_id: M Abdullah Ali
