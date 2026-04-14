@@ -29,6 +29,6 @@ jobs:
       run: |
         pytest
 
-    - name: Train model
+    - name: Train Model
       run: |
         python src/train.py
