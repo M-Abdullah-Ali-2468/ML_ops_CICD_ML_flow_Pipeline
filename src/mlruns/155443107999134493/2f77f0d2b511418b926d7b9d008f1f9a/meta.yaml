@@ -1,0 +1,14 @@
+artifact_uri: file:C:/Users/M Abdullah Ali/Documents/Learning Material/MlOps/ML_ops_CICD_ML_flow_Pipeline/src/mlruns/155443107999134493/2f77f0d2b511418b926d7b9d008f1f9a/artifacts
+end_time: 1776165235296
+entry_point_name: ''
+experiment_id: '155443107999134493'
+lifecycle_stage: active
+run_id: 2f77f0d2b511418b926d7b9d008f1f9a
+run_name: RF_100_trees
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1776165230581
+status: 3
+tags: []
+user_id: M Abdullah Ali

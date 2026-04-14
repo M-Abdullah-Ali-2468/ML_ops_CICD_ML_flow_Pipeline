@@ -1,0 +1,10 @@
+artifact_location: file:C:/Users/M Abdullah Ali/Documents/Learning Material/MlOps/ML_ops_CICD_ML_flow_Pipeline/src/mlruns/155443107999134493/models/m-e1a543e5d1414c2ba036e211e891094c/artifacts
+creation_timestamp: 1776165221510
+experiment_id: '155443107999134493'
+last_updated_timestamp: 1776165226096
+model_id: m-e1a543e5d1414c2ba036e211e891094c
+model_type: null
+name: model
+source_run_id: f4b9b3c64db94e9d8a4a3029dd2329f1
+status: 2
+status_message: null
