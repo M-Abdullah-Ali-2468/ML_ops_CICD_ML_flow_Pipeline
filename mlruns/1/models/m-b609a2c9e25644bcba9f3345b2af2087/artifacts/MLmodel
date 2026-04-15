@@ -1,0 +1,23 @@
+artifact_path: file:C:/Users/M Abdullah Ali/Documents/Learning Material/MlOps/ML_ops_CICD_ML_flow_Pipeline/mlruns/1/models/m-b609a2c9e25644bcba9f3345b2af2087/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.14.3
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.8.0
+    skops_trusted_types: null
+mlflow_version: 3.10.1
+model_id: m-b609a2c9e25644bcba9f3345b2af2087
+model_size_bytes: 77757
+model_uuid: m-b609a2c9e25644bcba9f3345b2af2087
+prompts: null
+run_id: 5e917e16b8eb444f93f6ea1d1368499a
+utc_time_created: '2026-04-15 06:14:30.084517'
