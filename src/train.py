@@ -15,9 +15,9 @@ import joblib
 
 
  
-# MLflow Setup
+# MLflow Setup (Persistent DB)
  
-mlflow.set_tracking_uri("file:./mlruns")
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("Iris_Classification")
 
 
@@ -26,7 +26,7 @@ mlflow.set_experiment("Iris_Classification")
  
 X, y = load_iris(return_X_y=True)
 
-# simulate new incoming data
+# simulate new data
 X = X + np.random.normal(0, 0.05, X.shape)
 
 X_train, X_test, y_train, y_test = train_test_split(
@@ -76,7 +76,7 @@ for C in [0.1, 1, 10]:
 
         mlflow.sklearn.log_model(model, "model")
 
-        print(f"Logistic C={C} → F1: {f1}")
+        print(f"Logistic C={C} -> F1: {f1}")
 
         if f1 > best_score:
             best_score = f1
@@ -110,7 +110,7 @@ for n in [50, 100, 200]:
 
         mlflow.sklearn.log_model(model, "model")
 
-        print(f"RF n={n} → F1: {f1}")
+        print(f"RF n={n} -> F1: {f1}")
 
         if f1 > best_score:
             best_score = f1
@@ -119,7 +119,7 @@ for n in [50, 100, 200]:
 
 
  
-# Save Best Model (.pkl)
+# Save Best Model
  
 save_path = "models"
 os.makedirs(save_path, exist_ok=True)
@@ -133,19 +133,24 @@ mlflow.log_artifact(model_file)
 
 
  
-# PART 3: Compare with Production
+# PART 3: Safe Production Check
  
 client = MlflowClient()
 model_name = "Best_Iris_Model"
 model_uri = f"runs:/{best_run_id}/model"
 
-prod_versions = client.get_latest_versions(model_name, stages=["Production"])
+try:
+    prod_versions = client.get_latest_versions(model_name, stages=["Production"])
 
-if len(prod_versions) > 0:
-    prod_run_id = prod_versions[0].run_id
-    prod_run = client.get_run(prod_run_id)
-    old_f1 = prod_run.data.metrics.get("f1_score", 0)
-else:
+    if len(prod_versions) > 0:
+        prod_run_id = prod_versions[0].run_id
+        prod_run = client.get_run(prod_run_id)
+        old_f1 = prod_run.data.metrics.get("f1_score", 0)
+    else:
+        old_f1 = 0
+
+except Exception:
+    print("No registered model found -> first run")
     old_f1 = 0
 
 new_f1 = best_score
@@ -158,13 +163,12 @@ print(f"New Model F1: {new_f1}")
 # Decision
  
 if new_f1 > old_f1:
-    print("New model is better → promoting")
+    print("New model is better -> promoting")
 
-    # Register Model
     result = mlflow.register_model(model_uri=model_uri, name=model_name)
     new_version = result.version
 
-    # Maintain ONLY ONE STAGING
+    # keep only one staging
     for mv in client.search_model_versions(f"name='{model_name}'"):
         if mv.current_stage == "Staging":
             client.transition_model_version_stage(
@@ -182,4 +186,4 @@ if new_f1 > old_f1:
     print(f"Model version {new_version} moved to Staging")
 
 else:
-    print("New model is NOT better → skipping promotion")
+    print("New model is NOT better -> skipping promotion")

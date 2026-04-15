@@ -2,12 +2,13 @@ import os
 import mlflow
 from huggingface_hub import login, upload_file
 from mlflow.tracking import MlflowClient
+import joblib
 
 
  
-# MLflow Setup
+# MLflow Setup (FIXED)
  
-mlflow.set_tracking_uri("file:./mlruns")
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
 
  
@@ -16,7 +17,7 @@ mlflow.set_tracking_uri("file:./mlruns")
 token = os.environ.get("HF_TOKEN")
 
 if token is None:
-    raise Exception("HF_TOKEN not found in environment variables")
+    raise Exception("HF_TOKEN not found")
 
 login(token=token)
 
@@ -29,12 +30,16 @@ model_name = "Best_Iris_Model"
 
 
  
-# Get Staging Model
+# Safe Staging Fetch
  
-versions = client.get_latest_versions(model_name, stages=["Staging"])
+try:
+    versions = client.get_latest_versions(model_name, stages=["Staging"])
+except Exception:
+    print("No model found → skipping deployment")
+    exit()
 
 if len(versions) == 0:
-    print("No new model in Staging → skipping deployment")
+    print("No model in Staging → skipping")
     exit()
 
 model_version = versions[0]
@@ -42,7 +47,7 @@ print(f"Using Staging model version: {model_version.version}")
 
 
  
-# Move old Production → Archived
+# Archive old Production
  
 for mv in client.search_model_versions(f"name='{model_name}'"):
     if mv.current_stage == "Production":
@@ -54,7 +59,7 @@ for mv in client.search_model_versions(f"name='{model_name}'"):
 
 
  
-# Promote Staging → Production
+# Promote to Production
  
 client.transition_model_version_stage(
     name=model_name,
@@ -62,22 +67,26 @@ client.transition_model_version_stage(
     stage="Production"
 )
 
-print(f"Model version {model_version.version} moved to Production")
+print("Model promoted to Production")
 
 
  
-# Upload Best Model to Hugging Face
+# Load model from MLflow
  
-model_path = "models/best_model.pkl"
+model_uri = f"models:/{model_name}/{model_version.version}"
+model = mlflow.sklearn.load_model(model_uri)
 
-if not os.path.exists(model_path):
-    raise Exception("best_model.pkl not found. Run training first.")
+joblib.dump(model, "best_model.pkl")
 
+
+ 
+# Upload to Hugging Face
+ 
 upload_file(
-    path_or_fileobj=model_path,
+    path_or_fileobj="best_model.pkl",
     path_in_repo="best_model.pkl",
     repo_id="mabdullahali/iris-model",
     repo_type="model"
 )
 
-print("Best model uploaded to Hugging Face")
+print("Model uploaded to Hugging Face")
