@@ -9,41 +9,50 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
+import numpy as np
 import os
 import joblib
 
 
+ 
 # MLflow Setup
-
+ 
 mlflow.set_tracking_uri("file:./mlruns")
 mlflow.set_experiment("Iris_Classification")
 
 
-# Load Data
+ 
+# Load Data + Simulate New Data
+ 
 X, y = load_iris(return_X_y=True)
+
+# simulate new incoming data
+X = X + np.random.normal(0, 0.05, X.shape)
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
 
-
+ 
 # Preprocessing
-
+ 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 
-
+ 
 # Best Model Tracking
+ 
 best_score = 0
 best_run_id = None
 best_model = None
 
 
-
+ 
 # Logistic Regression Runs
+ 
 for C in [0.1, 1, 10]:
     with mlflow.start_run(run_name=f"Logistic_C_{C}") as run:
 
@@ -75,8 +84,9 @@ for C in [0.1, 1, 10]:
             best_model = model
 
 
+ 
 # Random Forest Runs
-
+ 
 for n in [50, 100, 200]:
     with mlflow.start_run(run_name=f"RF_{n}_trees") as run:
 
@@ -108,47 +118,68 @@ for n in [50, 100, 200]:
             best_model = model
 
 
+ 
 # Save Best Model (.pkl)
-save_path = r"C:\Users\M Abdullah Ali\Documents\Learning Material\MlOps\ML_ops_CICD_ML_flow_Pipeline\models"
-
+ 
+save_path = "models"
 os.makedirs(save_path, exist_ok=True)
 
 model_file = os.path.join(save_path, "best_model.pkl")
-
 joblib.dump(best_model, model_file)
 
 print(f"Best model saved at: {model_file}")
 
-# log artifact
 mlflow.log_artifact(model_file)
 
 
-
-# Register Model
+ 
+# PART 3: Compare with Production
+ 
 client = MlflowClient()
-
 model_name = "Best_Iris_Model"
 model_uri = f"runs:/{best_run_id}/model"
 
-result = mlflow.register_model(model_uri=model_uri, name=model_name)
-new_version = result.version
+prod_versions = client.get_latest_versions(model_name, stages=["Production"])
+
+if len(prod_versions) > 0:
+    prod_run_id = prod_versions[0].run_id
+    prod_run = client.get_run(prod_run_id)
+    old_f1 = prod_run.data.metrics.get("f1_score", 0)
+else:
+    old_f1 = 0
+
+new_f1 = best_score
+
+print(f"Old Production F1: {old_f1}")
+print(f"New Model F1: {new_f1}")
 
 
-# Maintain ONLY ONE STAGING MODEL
-for mv in client.search_model_versions(f"name='{model_name}'"):
-    if mv.current_stage == "Staging":
-        client.transition_model_version_stage(
-            name=model_name,
-            version=mv.version,
-            stage="Archived"
-        )
+ 
+# Decision
+ 
+if new_f1 > old_f1:
+    print("New model is better → promoting")
 
+    # Register Model
+    result = mlflow.register_model(model_uri=model_uri, name=model_name)
+    new_version = result.version
 
-# move new model to Staging
-client.transition_model_version_stage(
-    name=model_name,
-    version=new_version,
-    stage="Staging"
-)
+    # Maintain ONLY ONE STAGING
+    for mv in client.search_model_versions(f"name='{model_name}'"):
+        if mv.current_stage == "Staging":
+            client.transition_model_version_stage(
+                name=model_name,
+                version=mv.version,
+                stage="Archived"
+            )
 
-print(f"Model version {new_version} is now in Staging")
+    client.transition_model_version_stage(
+        name=model_name,
+        version=new_version,
+        stage="Staging"
+    )
+
+    print(f"Model version {new_version} moved to Staging")
+
+else:
+    print("New model is NOT better → skipping promotion")

@@ -3,25 +3,47 @@ import mlflow
 from huggingface_hub import login, upload_file
 from mlflow.tracking import MlflowClient
 
-# FIX: set tracking URI
-mlflow.set_tracking_uri("mlruns")
 
-# login
-token = os.environ["HF_TOKEN"]
+ 
+# MLflow Setup
+ 
+mlflow.set_tracking_uri("file:./mlruns")
+
+
+ 
+# Hugging Face Login
+ 
+token = os.environ.get("HF_TOKEN")
+
+if token is None:
+    raise Exception("HF_TOKEN not found in environment variables")
+
 login(token=token)
 
+
+ 
+# MLflow Client
+ 
 client = MlflowClient()
 model_name = "Best_Iris_Model"
 
-# get staging model
+
+ 
+# Get Staging Model
+ 
 versions = client.get_latest_versions(model_name, stages=["Staging"])
 
 if len(versions) == 0:
-    raise Exception("No Staging model found")
+    print("No new model in Staging → skipping deployment")
+    exit()
 
 model_version = versions[0]
+print(f"Using Staging model version: {model_version.version}")
 
-# promote to production
+
+ 
+# Move old Production → Archived
+ 
 for mv in client.search_model_versions(f"name='{model_name}'"):
     if mv.current_stage == "Production":
         client.transition_model_version_stage(
@@ -30,16 +52,26 @@ for mv in client.search_model_versions(f"name='{model_name}'"):
             stage="Archived"
         )
 
+
+ 
+# Promote Staging → Production
+ 
 client.transition_model_version_stage(
     name=model_name,
     version=model_version.version,
     stage="Production"
 )
 
-print("Model promoted to Production")
+print(f"Model version {model_version.version} moved to Production")
 
-# upload .pkl
+
+ 
+# Upload Best Model to Hugging Face
+ 
 model_path = "models/best_model.pkl"
+
+if not os.path.exists(model_path):
+    raise Exception("best_model.pkl not found. Run training first.")
 
 upload_file(
     path_or_fileobj=model_path,
@@ -48,4 +80,4 @@ upload_file(
     repo_type="model"
 )
 
-print("Model uploaded")
+print("Best model uploaded to Hugging Face")
