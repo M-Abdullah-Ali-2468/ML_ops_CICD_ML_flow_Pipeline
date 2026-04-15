@@ -1,6 +1,5 @@
 import mlflow
 import mlflow.sklearn
-
 from mlflow.tracking import MlflowClient
 
 from sklearn.datasets import load_iris
@@ -10,11 +9,17 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
+import os
+import joblib
+
+
+# MLflow Setup
 
 mlflow.set_tracking_uri("file:./mlruns")
 mlflow.set_experiment("Iris_Classification")
 
 
+# Load Data
 X, y = load_iris(return_X_y=True)
 
 X_train, X_test, y_train, y_test = train_test_split(
@@ -22,22 +27,25 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 
+
+# Preprocessing
+
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 
+
+# Best Model Tracking
 best_score = 0
 best_run_id = None
-best_model_name = ""
-best_params = {}
+best_model = None
 
 
-# Logistic Regression runs
+
+# Logistic Regression Runs
 for C in [0.1, 1, 10]:
     with mlflow.start_run(run_name=f"Logistic_C_{C}") as run:
-
-        print(f"Training Logistic Regression with C={C}")
 
         model = LogisticRegression(C=C, max_iter=200)
         model.fit(X_train_scaled, y_train)
@@ -59,20 +67,18 @@ for C in [0.1, 1, 10]:
 
         mlflow.sklearn.log_model(model, "model")
 
-        print(f"Results -> Accuracy: {acc}, Precision: {precision}, Recall: {recall}, F1: {f1}\n")
+        print(f"Logistic C={C} → F1: {f1}")
 
         if f1 > best_score:
             best_score = f1
             best_run_id = run.info.run_id
-            best_model_name = "LogisticRegression"
-            best_params = {"C": C}
+            best_model = model
 
 
-# Random Forest runs
+# Random Forest Runs
+
 for n in [50, 100, 200]:
     with mlflow.start_run(run_name=f"RF_{n}_trees") as run:
-
-        print(f"Training Random Forest with n_estimators={n}")
 
         model = RandomForestClassifier(n_estimators=n, random_state=42)
         model.fit(X_train, y_train)
@@ -94,41 +100,55 @@ for n in [50, 100, 200]:
 
         mlflow.sklearn.log_model(model, "model")
 
-        print(f"Results -> Accuracy: {acc}, Precision: {precision}, Recall: {recall}, F1: {f1}\n")
+        print(f"RF n={n} → F1: {f1}")
 
         if f1 > best_score:
             best_score = f1
             best_run_id = run.info.run_id
-            best_model_name = "RandomForest"
-            best_params = {"n_estimators": n}
+            best_model = model
 
 
-# Best model summary
-print("Best Model Summary:")
-print(f"Model: {best_model_name}")
-print(f"Parameters: {best_params}")
-print(f"Best F1 Score: {best_score}")
+# Save Best Model (.pkl)
+save_path = r"C:\Users\M Abdullah Ali\Documents\Learning Material\MlOps\ML_ops_CICD_ML_flow_Pipeline\models"
+
+os.makedirs(save_path, exist_ok=True)
+
+model_file = os.path.join(save_path, "best_model.pkl")
+
+joblib.dump(best_model, model_file)
+
+print(f"Best model saved at: {model_file}")
+
+# log artifact
+mlflow.log_artifact(model_file)
 
 
-# Register best model
-model_uri = f"runs:/{best_run_id}/model"
 
-mlflow.register_model(
-    model_uri=model_uri,
-    name="Best_Iris_Model"
-)
-
-
-# Assign stage
+# Register Model
 client = MlflowClient()
 
-latest_version = client.get_latest_versions("Best_Iris_Model")[0].version
+model_name = "Best_Iris_Model"
+model_uri = f"runs:/{best_run_id}/model"
 
+result = mlflow.register_model(model_uri=model_uri, name=model_name)
+new_version = result.version
+
+
+# Maintain ONLY ONE STAGING MODEL
+for mv in client.search_model_versions(f"name='{model_name}'"):
+    if mv.current_stage == "Staging":
+        client.transition_model_version_stage(
+            name=model_name,
+            version=mv.version,
+            stage="Archived"
+        )
+
+
+# move new model to Staging
 client.transition_model_version_stage(
-    name="Best_Iris_Model",
-    version=latest_version,
+    name=model_name,
+    version=new_version,
     stage="Staging"
 )
 
-
-print("Model registered and moved to Staging")
+print(f"Model version {new_version} is now in Staging")

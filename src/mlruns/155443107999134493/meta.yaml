@@ -1,7 +1,0 @@
-artifact_location: file:C:/Users/M Abdullah Ali/Documents/Learning Material/MlOps/ML_ops_CICD_ML_flow_Pipeline/src/mlruns/155443107999134493
-creation_time: 1776162514882
-experiment_id: '155443107999134493'
-last_update_time: 1776162514882
-lifecycle_stage: active
-name: Iris_Classification
-workspace: default
